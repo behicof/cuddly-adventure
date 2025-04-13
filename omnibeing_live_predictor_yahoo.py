@@ -1,4 +1,3 @@
-
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -17,7 +16,7 @@ class FinalOptimizationExpansionPredictiveSystem:
         self.labels = []
 
     def process_market_data(self, market_data):
-        features = [market_data['sentiment'], market_data['volatility'], market_data['price_change']]
+        features = [market_data['sentiment'], market_data['volatility'], market_data['price_change'], market_data['moving_average'], market_data['rsi']]
         self.market_data.append(features)
         self.labels.append(market_data['buy_sell_signal'])
         return features
@@ -32,7 +31,7 @@ class FinalOptimizationExpansionPredictiveSystem:
             self.gb_model.fit(X, y)
 
     def make_predictions(self, market_data):
-        features = [market_data['sentiment'], market_data['volatility'], market_data['price_change']]
+        features = [market_data['sentiment'], market_data['volatility'], market_data['price_change'], market_data['moving_average'], market_data['rsi']]
         rf_prediction = self.rf_model.predict([features])[0]
         lr_prediction = self.lr_model.predict([features])[0]
         svm_prediction = self.svm_model.predict([features])[0]
@@ -53,6 +52,8 @@ df = yf.download(tickers=symbol, period="2d", interval="1h")
 df["price_change"] = df["Close"].pct_change().fillna(0)
 df["volatility"] = df["Close"].rolling(window=5).std().fillna(0)
 df["sentiment"] = np.tanh(df["price_change"] * 20)
+df["moving_average"] = df["Close"].rolling(window=10).mean().fillna(0)
+df["rsi"] = 100 - (100 / (1 + df["Close"].diff().apply(lambda x: max(x, 0)).rolling(window=14).mean() / df["Close"].diff().apply(lambda x: abs(min(x, 0))).rolling(window=14).mean()))
 df["future_price"] = df["Close"].shift(-2)
 df["buy_sell_signal"] = (df["future_price"] > df["Close"]).astype(int).fillna(0)
 
@@ -63,6 +64,8 @@ for i, row in df.iterrows():
         "sentiment": row["sentiment"],
         "volatility": row["volatility"],
         "price_change": row["price_change"],
+        "moving_average": row["moving_average"],
+        "rsi": row["rsi"],
         "buy_sell_signal": row["buy_sell_signal"]
     })
 model.train_models()
@@ -71,7 +74,9 @@ latest = df.iloc[-1]
 signal = model.make_predictions({
     "sentiment": latest["sentiment"],
     "volatility": latest["volatility"],
-    "price_change": latest["price_change"]
+    "price_change": latest["price_change"],
+    "moving_average": latest["moving_average"],
+    "rsi": latest["rsi"]
 })
 
 print(f"سیگنال پیش‌بینی‌شده برای {symbol}: {signal}")
