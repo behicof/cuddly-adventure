@@ -1,4 +1,3 @@
-
 import MetaTrader5 as mt5
 import pandas as pd
 import numpy as np
@@ -20,7 +19,7 @@ class FinalOptimizationExpansionPredictiveSystem:
         self.model_accuracy = 0
 
     def process_market_data(self, market_data):
-        features = [market_data['sentiment'], market_data['volatility'], market_data['price_change']]
+        features = [market_data['sentiment'], market_data['volatility'], market_data['price_change'], market_data['moving_average'], market_data['rsi']]
         self.market_data.append(features)
         self.labels.append(market_data['buy_sell_signal'])
         return features
@@ -35,7 +34,7 @@ class FinalOptimizationExpansionPredictiveSystem:
             self.gb_model.fit(X, y)
 
     def make_predictions(self, market_data):
-        features = [market_data['sentiment'], market_data['volatility'], market_data['price_change']]
+        features = [market_data['sentiment'], market_data['volatility'], market_data['price_change'], market_data['moving_average'], market_data['rsi']]
         rf_prediction = self.rf_model.predict([features])[0]
         lr_prediction = self.lr_model.predict([features])[0]
         svm_prediction = self.svm_model.predict([features])[0]
@@ -63,22 +62,26 @@ last_price = df['close'].iloc[-1]
 price_change = (df['close'].iloc[-1] - df['close'].iloc[-2]) / df['close'].iloc[-2]
 volatility = df['close'].rolling(5).std().iloc[-1]
 sentiment = np.tanh(price_change * 20)  # تقریب از احساسات بازار
+moving_average = df['close'].rolling(window=10).mean().iloc[-1]
+rsi = 100 - (100 / (1 + df['close'].diff().apply(lambda x: max(x, 0)).rolling(window=14).mean() / df['close'].diff().apply(lambda x: abs(min(x, 0))).rolling(window=14).mean()))
 
 # آماده‌سازی داده برای مدل
 market_data = {
     "sentiment": sentiment,
     "volatility": volatility,
-    "price_change": price_change
+    "price_change": price_change,
+    "moving_average": moving_average,
+    "rsi": rsi
 }
 
 # اجرای مدل و دریافت سیگنال
 model = FinalOptimizationExpansionPredictiveSystem()
 # آموزش اولیه با داده ساختگی
 training_data = [
-    {'sentiment': 0.6, 'volatility': 0.01, 'price_change': 0.04, 'buy_sell_signal': 1},
-    {'sentiment': -0.5, 'volatility': 0.02, 'price_change': -0.03, 'buy_sell_signal': 0},
-    {'sentiment': 0.4, 'volatility': 0.015, 'price_change': 0.02, 'buy_sell_signal': 1},
-    {'sentiment': -0.7, 'volatility': 0.03, 'price_change': -0.05, 'buy_sell_signal': 0}
+    {'sentiment': 0.6, 'volatility': 0.01, 'price_change': 0.04, 'moving_average': 0.03, 'rsi': 70, 'buy_sell_signal': 1},
+    {'sentiment': -0.5, 'volatility': 0.02, 'price_change': -0.03, 'moving_average': 0.02, 'rsi': 30, 'buy_sell_signal': 0},
+    {'sentiment': 0.4, 'volatility': 0.015, 'price_change': 0.02, 'moving_average': 0.025, 'rsi': 60, 'buy_sell_signal': 1},
+    {'sentiment': -0.7, 'volatility': 0.03, 'price_change': -0.05, 'moving_average': 0.01, 'rsi': 20, 'buy_sell_signal': 0}
 ]
 for d in training_data:
     model.process_market_data(d)
